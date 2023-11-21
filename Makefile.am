@@ -84,7 +84,8 @@ thermald_SOURCES = \
 	src/thd_zone_kbl_amdgpu.cpp \
 	src/thd_sensor_rapl_power.cpp \
 	src/thd_zone_rapl_power.cpp \
-	src/thd_gddv.cpp
+	src/thd_gddv.cpp \
+	src/thd_resources.c
 
 man5_MANS = man/thermal-conf.xml.5
 man8_MANS = man/thermald.8
