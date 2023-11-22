@@ -85,7 +85,7 @@ static gboolean ignore_cpuid_check = false;
 gboolean exclusive_control = FALSE;
 
 static GMainLoop *g_main_loop;
-#define GDBUS 1
+//#define GDBUS 1
 #ifdef GDBUS
 gint watcher_id = 0;
 #endif
@@ -168,12 +168,8 @@ gboolean sig_int_handler(void) {
 	if (thd_engine)
 		thd_engine->thd_engine_terminate();
 	sleep(1);
-	if (g_main_loop) {
+	if (g_main_loop)
 		g_main_loop_quit(g_main_loop);
-#ifdef GDBUS
-		g_bus_unwatch_name (watcher_id);
-#endif
-	}
 	delete thd_engine;
 	clean_up_lockfile();
 
@@ -381,6 +377,10 @@ int main(int argc, char *argv[]) {
 	thd_log_debug("Start main loop\n");
 	g_main_loop_run(g_main_loop);
 	thd_log_warn("Oops g main loop exit..\n");
+
+#ifdef GDBUS
+	g_bus_unwatch_name (watcher_id);
+#endif
 
 	fprintf(stdout, "Exiting ..\n");
 	clean_up_lockfile();
