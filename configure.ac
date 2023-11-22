@@ -130,4 +130,6 @@ AC_CONFIG_FILES([Makefile
                  docs/version.xml
                  data/Makefile])
 
+AC_DEFINE([GDBUS], [1], [Enable GDBus support])
+
 AC_OUTPUT
