@@ -585,7 +585,7 @@ gboolean thd_dbus_interface_get_sensor_temperature(PrefObject *obj, int index,
 		return FALSE;
 }
 
-#define GDBUS 1
+//#define GDBUS 1
 #pragma GCC diagnostic push
 #ifdef GDBUS
 static GDBusNodeInfo *introspection_data = NULL;
@@ -602,8 +602,10 @@ thd_dbus_load_introspection(const gchar *filename, GError **error)
 	/* lookup data */
 	path = g_build_filename("/org/freedesktop/thermald", filename, NULL);
 	data = g_resources_lookup_data(path, G_RESOURCE_LOOKUP_FLAGS_NONE, error);
-	if (data == NULL)
+	if (data == NULL) {
+		g_warning("Failed to load introspection data: %s\n", (*error)->message);
 		return NULL;
+	}
 
 	/* build introspection from XML */
 	return g_dbus_node_info_new_for_xml((gchar *)g_bytes_get_data(data, NULL), error);
@@ -643,7 +645,7 @@ thd_dbus_handle_method_call (GDBusConnection       *connection,
 			g_dbus_method_invocation_return_gerror(invocation, error);
 			return;
 		}
-
+		g_dbus_method_invocation_return_value(invocation, NULL);
 		return;
 	}
 
@@ -659,6 +661,7 @@ thd_dbus_handle_method_call (GDBusConnection       *connection,
 			g_dbus_method_invocation_return_gerror(invocation, error);
 			return;
 		}
+		g_dbus_method_invocation_return_value(invocation, NULL);
 		return;
 	}
 
@@ -677,6 +680,7 @@ thd_dbus_handle_method_call (GDBusConnection       *connection,
 			g_dbus_method_invocation_return_gerror(invocation, error);
 			return;
 		}
+		g_dbus_method_invocation_return_value(invocation, NULL);
 		return;
 	}
 
@@ -693,9 +697,10 @@ thd_dbus_handle_method_call (GDBusConnection       *connection,
 						       slope, intercept, &error);
 		
 		if (error) {
-			g_dbus_method_invocation_return_gerror(invocation, error);
+			g_dbus_method_invocation_return_gerror (invocation, error);
 			return;
 		}
+		g_dbus_method_invocation_return_value (invocation, NULL);
 		return;
 	}
 
@@ -712,9 +717,10 @@ thd_dbus_handle_method_call (GDBusConnection       *connection,
 						     trip_point_sensor, trip_point_cdev, &error);
 
 		if (error) {
-			g_dbus_method_invocation_return_gerror(invocation, error);
+			g_dbus_method_invocation_return_gerror (invocation, error);
 			return;
 		}
+		g_dbus_method_invocation_return_value (invocation, NULL);
 		return;
 	}
 
@@ -727,9 +733,10 @@ thd_dbus_handle_method_call (GDBusConnection       *connection,
 		thd_dbus_interface_delete_trip_point (obj, zone_name, &error);
 		
 		if (error) {
-			g_dbus_method_invocation_return_gerror(invocation, error);
+			g_dbus_method_invocation_return_gerror (invocation, error);
 			return;
 		}
+		g_dbus_method_invocation_return_value (invocation, NULL);
 		return;
 	}
 
@@ -744,6 +751,7 @@ thd_dbus_handle_method_call (GDBusConnection       *connection,
 			g_dbus_method_invocation_return_gerror(invocation, error);
 			return;
 		}
+		g_dbus_method_invocation_return_value (invocation, NULL);
 		return;
 	}
 
@@ -755,183 +763,375 @@ thd_dbus_handle_method_call (GDBusConnection       *connection,
 		thd_dbus_interface_disable_cooling_device (obj, cdev_name, &error);
 
 		if (error) {
-			g_dbus_method_invocation_return_gerror(invocation, error);
+			g_dbus_method_invocation_return_gerror (invocation, error);
 			return;
 		}
+		g_dbus_method_invocation_return_value(invocation, NULL);
 		return;
 	}
 
 	if (g_strcmp0 (method_name, "GetCdevCount") == 0) {
 		gint count;
 	
-		thd_dbus_interface_get_cdev_count(obj, &count, &error);
+		thd_dbus_interface_get_cdev_count (obj, &count, &error);
 		if (error) {
 			g_dbus_method_invocation_return_gerror(invocation, error);
 			return;
 		}
 		
-		g_dbus_method_invocation_return_value(invocation,
+		g_dbus_method_invocation_return_value (invocation,
 						      g_variant_new("(u)", count));
 		return;
 	}
 
 	if (g_strcmp0 (method_name, "GetCdevInformation") == 0) {
+		gint ret;
 		gint index;
+		g_autofree gchar *cdev_out = NULL;
+		gint min_state;
+		gint max_state;
+		gint curr_state;
 
 		g_variant_get (parameters, "(u)", &index);
 
-		thd_log_debug ("Parameters are %d\n", index);
+		ret = thd_dbus_interface_get_cdev_information (obj, index, &cdev_out,
+							      &min_state, &max_state,
+							      &curr_state, &error);
 
+		if (error || !ret) {
+			g_dbus_method_invocation_return_gerror (invocation, error);
+			return;
+		}
+
+		g_dbus_method_invocation_return_value (invocation,
+						      g_variant_new("(siii)", cdev_out,
+								     min_state, max_state,
+								     curr_state));
 		return;
 	}
 
 	if (g_strcmp0 (method_name, "GetCurrentPreference") == 0) {
+		gboolean ret;
+		g_autofree gchar *cur_pref = NULL;
+
+		ret = thd_dbus_interface_get_current_preference (obj, &cur_pref,
+								&error);
+		
+		if (error || !ret) {
+			g_dbus_method_invocation_return_gerror (invocation, error);
+			return;
+		}
+
+		g_dbus_method_invocation_return_value (invocation,
+						       g_variant_new("(s)", cur_pref));
+
 		return;
 	}
 
-	if (g_strcmp0 (method_name, "GetSenSorCount") == 0) {
+	if (g_strcmp0 (method_name, "GetSensorCount") == 0) {
+		gboolean ret;
+		gint count;
+
+		ret = thd_dbus_interface_get_sensor_count (obj, &count, &error);
+
+		if (error || !ret) {
+			g_dbus_method_invocation_return_gerror (invocation, error);
+			return;
+		}
+
+		g_dbus_method_invocation_return_value (invocation,
+						       g_variant_new("(u)", count));
+
 		return;
 	}
 
 	if (g_strcmp0 (method_name, "GetSensorInformation") == 0) {
-		// (u)
+		gboolean ret;
 		gint index;
+		g_autofree gchar *sensor_out = NULL;
+		g_autofree gchar *path = NULL;
+		gint temp;
 
 		g_variant_get (parameters, "(u)", &index);
 
-		thd_log_debug ("Parameters are %d\n", index);
+		ret = thd_dbus_interface_get_sensor_information (obj, index, &sensor_out,
+								 &path, &temp, &error);
+
+		if (error || !ret) {
+			g_dbus_method_invocation_return_gerror (invocation, error);
+			return;
+		}
+
+		g_dbus_method_invocation_return_value (invocation,
+						       g_variant_new("(ssi)", sensor_out,
+								     path, temp));
 
 		return;
 	}
 
 	if (g_strcmp0 (method_name, "GetSensorTemperature") == 0) {
-		// (u)
+		gboolean ret;
 		gint index;
+		guint temperature;
 
 		g_variant_get (parameters, "(u)", &index);
 
-		thd_log_debug ("Parameters are %d\n", index);
+		ret = thd_dbus_interface_get_sensor_temperature (obj, index, &temperature,
+								 &error);
+
+		if (error || !ret) {
+			g_dbus_method_invocation_return_gerror (invocation, error);
+			return;
+		}
+
+		g_dbus_method_invocation_return_value (invocation,
+						       g_variant_new("(u)", temperature));
 		return;
 	}
 
 	if (g_strcmp0 (method_name, "GetZoneCount") == 0) {
+		gboolean ret;
+		gint count;
+
+		ret = thd_dbus_interface_get_zone_count(obj, &count, &error);
+
+		if (error || !ret) {
+			g_dbus_method_invocation_return_gerror (invocation, error);
+			return;
+		}
+
+		g_dbus_method_invocation_return_value (invocation,
+						       g_variant_new("(u)", count));
 		return;
 	}
 
 	if (g_strcmp0 (method_name, "GetZoneInformation") == 0) {
-		// (u)
+		gboolean ret;
 		gint index;
+		g_autofree gchar *zone_out = NULL;
+		gint sensor_count;
+		gint trip_count;
+		gint bound;
 
 		g_variant_get (parameters, "(u)", &index);
 
-		thd_log_debug ("Parameters are %d\n", index);
+		ret =  thd_dbus_interface_get_zone_information (obj, index, &zone_out,
+								&sensor_count, &trip_count,
+								&bound, &error);
+		
+		if (error || !ret) {
+			g_dbus_method_invocation_return_gerror (invocation, error);
+			return;
+		}
+
+		g_dbus_method_invocation_return_value (invocation,
+						       g_variant_new("(siii)", zone_out,
+								     sensor_count, trip_count,
+								     bound));
 
 		return;
 	}
 
 	if (g_strcmp0 (method_name, "GetZoneSensorAtIndex") == 0) {
-		// (uu)
+		gboolean ret;
 		gint zone_index;
 		gint sensor_index;
+		g_autofree gchar *sensor_out = NULL;
 
 		g_variant_get (parameters, "(uu)", &zone_index, &sensor_index);
 
-		thd_log_debug ("Parameters are %d %d\n", zone_index, sensor_index);
+		ret = thd_dbus_interface_get_zone_sensor_at_index (obj, zone_index,
+								   sensor_index, &sensor_out,
+								   &error);
+
+		if (error || !ret) {
+			g_dbus_method_invocation_return_gerror (invocation, error);
+			return;
+		}
+
+		g_dbus_method_invocation_return_value (invocation,
+						       g_variant_new("(s)", sensor_out));
 		return;
 	}
 
 	if (g_strcmp0 (method_name, "GetZoneStatus") == 0) {
-		// (s)
-		gchar *zone_name = NULL;
+		gboolean ret;
+		g_autofree gchar *zone_name = NULL;
+		gint status;
 
-		g_variant_get (parameters, "(&s)", &zone_name);
+		g_variant_get (parameters, "(s)", &zone_name);
+	
+		ret = thd_dbus_interface_get_zone_status (obj, zone_name, &status,
+							  &error);
 
-		thd_log_debug ("Parameters are %s\n", zone_name);
+		if (error || !ret) {
+			g_dbus_method_invocation_return_gerror (invocation, error);
+			return;
+		}
+
+		g_dbus_method_invocation_return_value (invocation,
+						       g_variant_new("(i)", status));
 		return;
 	}
 
 	if (g_strcmp0 (method_name, "GetZoneTripAtIndex") == 0) {
-		// (uu)
+		gboolean ret;
 		gint zone_index;
 		gint trip_index;
+		gint temp;
+		gint trip_type;
+		gint sensor_id;
+		gint cdev_size;
+		g_autoptr(GArray) cdev_ids = NULL;
+		g_autoptr(GVariantBuilder) builder = NULL;
+		GVariant **tmp;
+		GVariant *array = NULL;
+
 
 		g_variant_get (parameters, "(uu)", &zone_index, &trip_index);
 
-		thd_log_debug ("Parameters are %d %d\n", zone_index, trip_index);
+		ret = thd_dbus_interface_get_zone_trip_at_index(obj, zone_index, trip_index,
+								&temp, &trip_type, &sensor_id,
+								&cdev_size, &cdev_ids, &error);
+
+		if (error || !ret) {
+			g_dbus_method_invocation_return_gerror (invocation, error);
+			return;
+		}
+
+		builder = g_variant_builder_new (G_VARIANT_TYPE ("(iiiiai)"));
+		g_variant_builder_add_value (builder, g_variant_new_int32 (temp));
+		g_variant_builder_add_value (builder, g_variant_new_int32 (trip_type));
+		g_variant_builder_add_value (builder, g_variant_new_int32 (sensor_id));
+		g_variant_builder_add_value (builder, g_variant_new_int32 (cdev_size));
+				cdev_size = 2;
+		tmp = (GVariant **) g_malloc0 (cdev_size * sizeof (GVariant *));
+
+		for (int i = 0; i < cdev_size; i++) {
+			tmp[i] = g_variant_new_int32 (g_array_index (cdev_ids, gint, i));
+		}
+		array = g_variant_new_array (G_VARIANT_TYPE_INT32, tmp, cdev_size);
+		g_variant_builder_add_value (builder, array);
+
+		g_dbus_method_invocation_return_value (invocation,
+						       g_variant_builder_end (builder));
+		g_free (tmp);
+
 		return;
 	}
 
 	if (g_strcmp0 (method_name, "Reinit") == 0) {
+		thd_dbus_interface_reinit(obj, &error);
+
+		g_dbus_method_invocation_return_value (invocation,
+						       NULL);
 		return;
 	}
 
 	if (g_strcmp0 (method_name, "SetCurrentPreference") == 0) {
-		// (s)
-		gchar *pref = NULL;
+		gboolean ret;
+		g_autofree gchar *pref = NULL;
 
-		g_variant_get (parameters, "(&s)", &pref);
+		g_variant_get (parameters, "(s)", &pref);
 
-		thd_log_debug ("Parameters are %s\n", pref);
+		ret = thd_dbus_interface_set_current_preference(obj, pref, &error);
+
+		if (!ret) {
+			g_dbus_method_invocation_return_gerror (invocation, error);
+			return;
+		}
+
+		g_dbus_method_invocation_return_value (invocation,
+						       NULL);
 
 		return;
 	}
 
 	if (g_strcmp0 (method_name, "SetUserMaxTemperature") == 0) {
-		// (su)
-		gchar *zone_name = NULL;
+		gboolean ret;
+		g_autofree gchar *zone_name = NULL;
 		guint user_set_point_in_milli_degree_celsius;
 
-		g_variant_get (parameters, "(&su)", &zone_name,
+		g_variant_get (parameters, "(su)", &zone_name,
 			       &user_set_point_in_milli_degree_celsius);
 		
-		thd_log_debug ("Parameters are %s %d\n", zone_name,
-			       user_set_point_in_milli_degree_celsius);
+		ret = thd_dbus_interface_set_user_max_temperature (obj, zone_name,
+								   user_set_point_in_milli_degree_celsius,
+								   &error);
+		
+		if (!ret) {
+			g_dbus_method_invocation_return_gerror (invocation, error);
+			return;
+		}
 		return;
 	}
 
 	if (g_strcmp0 (method_name, "SetUserPassiveTemperature") == 0) {
-		// (su)
-		gchar *zone_name = NULL;
+		gboolean ret;
+		g_autofree gchar *zone_name = NULL;
 		guint user_set_point_in_milli_degree_celsius;
 
-		g_variant_get (parameters, "(&su)", &zone_name,
+		g_variant_get (parameters, "(su)", &zone_name,
 			       &user_set_point_in_milli_degree_celsius);
 
-		thd_log_debug ("Parameters are %s %d\n", zone_name,
-			       user_set_point_in_milli_degree_celsius);
+		ret = thd_dbus_interface_set_user_passive_temperature(obj, zone_name,
+								      user_set_point_in_milli_degree_celsius,
+								      &error);
+		if (!ret) {
+			g_dbus_method_invocation_return_gerror (invocation, error);
+			return;
+		}
 
+		g_dbus_method_invocation_return_value (invocation, NULL);
 		return;
 	}
 
 	if (g_strcmp0 (method_name, "SetZoneStatus") == 0) {
-		// (si)
-		gchar *zone_name = NULL;
+		gboolean ret;
+		g_autofree gchar *zone_name = NULL;
 		gint status;
 
-		g_variant_get (parameters, "(&si)", &zone_name, &status);
+		g_variant_get (parameters, "(si)", &zone_name, &status);
 
-		thd_log_debug ("Parameters are %s %d\n", zone_name, status);
+		ret = thd_dbus_interface_set_zone_status (obj, zone_name, status,
+							  &error);
+
+		if (!ret) {
+			g_dbus_method_invocation_return_gerror (invocation, error);
+			return;
+		}
+
+		g_dbus_method_invocation_return_value (invocation, NULL);
 		return;
 	}
 
 	if (g_strcmp0 (method_name, "Terminate") == 0) {
+		g_dbus_method_invocation_return_value (invocation, NULL);
+		thd_dbus_interface_terminate(obj, &error);
 		return;
 	}
 
 	if (g_strcmp0 (method_name, "UpdateCoolingDevice") == 0) {
-		// (ssiii)
-		gchar *cdev_name = NULL;
-		gchar *path = NULL;
+		gboolean ret;
+		g_autofree gchar *cdev_name = NULL;
+		g_autofree gchar *path = NULL;
 		gint min_state;
 		gint max_state;
 		gint step;
 
-		g_variant_get (parameters, "(&s&siii)", cdev_name, path, &min_state,
+		g_variant_get (parameters, "(ssiii)", &cdev_name, &path, &min_state,
 			       &max_state, &step);
 
-		thd_log_debug ("Parameters are %s %s %d %d %d\n", cdev_name, path,
-			       min_state, max_state, step);
+		ret = thd_dbus_interface_update_cooling_device(obj,
+							       cdev_name, path, min_state, max_state,
+							       step, &error);
+		
+		if (!ret) {
+			g_dbus_method_invocation_return_gerror (invocation, error);
+			return;
+		}
 
+		g_dbus_method_invocation_return_value (invocation, NULL);
 		return;
 	}
 
@@ -982,8 +1182,13 @@ thd_dbus_on_bus_acquired (GDBusConnection *connection,
 		return;
 	}
 
-	introspection_data = thd_dbus_load_introspection("thd_dbus_interface.xml",
+	introspection_data = thd_dbus_load_introspection("src/thd_dbus_interface.xml",
 							 &error);
+	if (error != NULL) {
+		thd_log_error("Couldn't create introspection data: %s:\n",
+			      error->message);
+		return;
+	}
 
 	registration_id = g_dbus_connection_register_object (connection,
 						       "/org/freedesktop/thermald",
