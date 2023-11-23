@@ -1004,7 +1004,6 @@ thd_dbus_handle_method_call (GDBusConnection       *connection,
 		g_variant_builder_add_value (builder, g_variant_new_int32 (trip_type));
 		g_variant_builder_add_value (builder, g_variant_new_int32 (sensor_id));
 		g_variant_builder_add_value (builder, g_variant_new_int32 (cdev_size));
-				cdev_size = 2;
 		tmp = (GVariant **) g_malloc0 (cdev_size * sizeof (GVariant *));
 
 		for (int i = 0; i < cdev_size; i++) {
