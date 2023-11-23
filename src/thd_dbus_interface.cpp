@@ -39,14 +39,9 @@ struct _PrefObject {
 	GObject parent;
 };
 
-//typedef struct {
-//	GObjectClass parent;
-//} PrefObjectClass;
-
 #define PREF_TYPE_OBJECT (pref_object_get_type())
 G_DECLARE_FINAL_TYPE(PrefObject, pref_object, PREF, OBJECT, GObject)
 
-//GType pref_object_get_type(void);
 #define MAX_DBUS_REPLY_STR_LEN	100
 
 G_DEFINE_TYPE(PrefObject, pref_object, G_TYPE_OBJECT)
@@ -585,13 +580,11 @@ gboolean thd_dbus_interface_get_sensor_temperature(PrefObject *obj, int index,
 		return FALSE;
 }
 
-//#define GDBUS 1
-#pragma GCC diagnostic push
 #ifdef GDBUS
-static GDBusNodeInfo *introspection_data = NULL;
+#pragma GCC diagnostic push
+
 static GDBusInterfaceVTable interface_vtable;
 extern gint watcher_id;
-
 
 static GDBusNodeInfo *
 thd_dbus_load_introspection(const gchar *filename, GError **error)
@@ -925,9 +918,9 @@ thd_dbus_handle_method_call (GDBusConnection       *connection,
 		}
 
 		g_dbus_method_invocation_return_value (invocation,
-						       g_variant_new("(siii)", zone_out,
-								     sensor_count, trip_count,
-								     bound));
+						       g_variant_new ("(siii)", zone_out,
+								      sensor_count, trip_count,
+								      bound));
 
 		return;
 	}
@@ -990,9 +983,9 @@ thd_dbus_handle_method_call (GDBusConnection       *connection,
 
 		g_variant_get (parameters, "(uu)", &zone_index, &trip_index);
 
-		ret = thd_dbus_interface_get_zone_trip_at_index(obj, zone_index, trip_index,
-								&temp, &trip_type, &sensor_id,
-								&cdev_size, &cdev_ids, &error);
+		ret = thd_dbus_interface_get_zone_trip_at_index (obj, zone_index, trip_index,
+								 &temp, &trip_type, &sensor_id,
+								 &cdev_size, &cdev_ids, &error);
 
 		if (error || !ret) {
 			g_dbus_method_invocation_return_gerror (invocation, error);
@@ -1004,8 +997,8 @@ thd_dbus_handle_method_call (GDBusConnection       *connection,
 		g_variant_builder_add_value (builder, g_variant_new_int32 (trip_type));
 		g_variant_builder_add_value (builder, g_variant_new_int32 (sensor_id));
 		g_variant_builder_add_value (builder, g_variant_new_int32 (cdev_size));
+		
 		tmp = (GVariant **) g_malloc0 (cdev_size * sizeof (GVariant *));
-
 		for (int i = 0; i < cdev_size; i++) {
 			tmp[i] = g_variant_new_int32 (g_array_index (cdev_ids, gint, i));
 		}
@@ -1073,9 +1066,9 @@ thd_dbus_handle_method_call (GDBusConnection       *connection,
 		g_variant_get (parameters, "(su)", &zone_name,
 			       &user_set_point_in_milli_degree_celsius);
 
-		ret = thd_dbus_interface_set_user_passive_temperature(obj, zone_name,
-								      user_set_point_in_milli_degree_celsius,
-								      &error);
+		ret = thd_dbus_interface_set_user_passive_temperature (obj, zone_name,
+								       user_set_point_in_milli_degree_celsius,
+								       &error);
 		if (!ret) {
 			g_dbus_method_invocation_return_gerror (invocation, error);
 			return;
@@ -1121,9 +1114,9 @@ thd_dbus_handle_method_call (GDBusConnection       *connection,
 		g_variant_get (parameters, "(ssiii)", &cdev_name, &path, &min_state,
 			       &max_state, &step);
 
-		ret = thd_dbus_interface_update_cooling_device(obj,
-							       cdev_name, path, min_state, max_state,
-							       step, &error);
+		ret = thd_dbus_interface_update_cooling_device (obj,
+								cdev_name, path, min_state, max_state,
+								step, &error);
 		
 		if (!ret) {
 			g_dbus_method_invocation_return_gerror (invocation, error);
@@ -1175,37 +1168,38 @@ thd_dbus_on_bus_acquired (GDBusConnection *connection,
 	guint registration_id;
 	GDBusProxy *proxy_id = NULL;
 	GError *error;
+	GDBusNodeInfo *introspection_data = NULL;
 
 	if (user_data == NULL) {
-		thd_log_error("user_data is NULL\n");
+		thd_log_error ("user_data is NULL\n");
 		return;
 	}
 
 	introspection_data = thd_dbus_load_introspection("src/thd_dbus_interface.xml",
 							 &error);
 	if (error != NULL) {
-		thd_log_error("Couldn't create introspection data: %s:\n",
+		thd_log_error ("Couldn't create introspection data: %s:\n",
 			      error->message);
 		return;
 	}
 
 	registration_id = g_dbus_connection_register_object (connection,
-						       "/org/freedesktop/thermald",
-						       introspection_data->interfaces[0],
-						       &interface_vtable,
-						       user_data,  /* user_data */
-						       NULL,  /* user_data_free_func */
-						       &error); /* GError** */
+							     "/org/freedesktop/thermald",
+							     introspection_data->interfaces[0],
+							     &interface_vtable,
+							     user_data,
+							     NULL,
+							     &error);
 	thd_log_error("regist obj\n");
 
-	proxy_id = g_dbus_proxy_new_sync(connection,
-						G_DBUS_PROXY_FLAGS_DO_NOT_LOAD_PROPERTIES,
-						NULL,
-						"org.freedesktop.DBus",
-						"/org/freedesktop/DBus",
-						"org.freedesktop.DBus",
-						NULL,
-						&error);
+	proxy_id = g_dbus_proxy_new_sync (connection,
+					  G_DBUS_PROXY_FLAGS_DO_NOT_LOAD_PROPERTIES,
+					  NULL,
+					  "org.freedesktop.DBus",
+					  "/org/freedesktop/DBus",
+					  "org.freedesktop.DBus",
+					  NULL,
+					  &error);
 	g_assert (registration_id > 0);
 	g_assert (proxy_id != NULL);
 }
@@ -1249,13 +1243,13 @@ int thd_dbus_server_init(gboolean (*exit_handler)(void)) {
 	interface_vtable.set_property = thd_dbus_handle_set_property;
 
 	watcher_id = g_bus_own_name (G_BUS_TYPE_SYSTEM,
-				   "org.freedesktop.thermald",
-				   G_BUS_NAME_OWNER_FLAGS_REPLACE,
-				   thd_dbus_on_bus_acquired,
-				   thd_dbus_on_name_acquired,
-				   thd_dbus_on_name_lost,
-				   g_object_ref (value_obj),
-				   NULL);
+				     "org.freedesktop.thermald",
+				     G_BUS_NAME_OWNER_FLAGS_REPLACE,
+				     thd_dbus_on_bus_acquired,
+				     thd_dbus_on_name_acquired,
+				     thd_dbus_on_name_lost,
+				     g_object_ref (value_obj),
+				     NULL);
 	
 	return THD_SUCCESS;
 }
